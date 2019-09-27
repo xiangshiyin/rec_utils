@@ -68,7 +68,7 @@ class Data:
         pass
 
     def prepTrainDNN(self):
-        self.itemSet_train = set(self.train[self.col_item].unique())
+        self.itemSet_train = set(self.train[self.col_item].unique()) ## all items in train
         self.interaction_train = self.train.groupby(self.col_user)[self.col_item]\
             .apply(set)\
                 .reset_index()\
@@ -77,8 +77,9 @@ class Data:
                     })
         self.interaction_train[self.col_item+'_negative'] = self.interaction_train[
             self.col_item+'_interacted'
-        ].map(lambda items: self.itemSet_train-items)
+        ].map(lambda items: self.itemSet_train-items) ## the actual negative set for each user
 
+        ## users, items, ratings all have the same size
         self.users = np.array(self.train[self.col_user])
         self.items = np.array(self.train[self.col_item])
         self.ratings = np.array([
@@ -94,7 +95,7 @@ class Data:
                 .reset_index()\
                     .rename(columns={
                         self.col_item:self.col_item+'_interacted_test'
-                    })
+                    }) ## all items in test
         interaction_test = pd.merge(
             interaction_test,
             self.interaction_train,
@@ -153,7 +154,7 @@ class Data:
                 self.items_test.append(negSample)
                 self.ratings_test.append(float(0))
        
-    def negativeSampling(self):
+    def negativeSampling(self): ## negative sample the train data set
         trainPlusNegSample = pd.merge(
             self.train,
             self.interaction_train[[self.col_user, self.col_item+'_negative']],
