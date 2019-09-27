@@ -3,5 +3,6 @@
     "terminal.integrated.env.osx": {
         "PATH":"/anaconda3/condabin:/Users/xyin/.nvm/versions/node/v6.9.1/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/mysql/bin"
     },
-    "licenser.author": "Yin, Xiangshi"
+    "licenser.author": "Yin, Xiangshi",
+    "python.linting.enabled": true
 }
