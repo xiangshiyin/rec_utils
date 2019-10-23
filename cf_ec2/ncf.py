@@ -4,6 +4,13 @@ import numpy as np
 import keras
 from keras import Model
 from keras.regularizers import l2
+from keras.optimizers import (
+    Adam,
+    Adamax,
+    Adagrad,
+    SGD,
+    RMSprop
+)
 from keras.layers import (
     Embedding, 
     Input,
@@ -22,7 +29,7 @@ class NCF:
         n_factors,
         layers,
         reg_layers,
-        seed
+        seed=123
     ):
         self.n_users = n_users
         self.n_items = n_items
@@ -101,8 +108,74 @@ class NCF:
         )
         return model
 
+def GFM():
+    def __init__(self):
+        pass
+
+def MLP():
+    def __init__(self):
+        pass
+
+def get_train():
+    return '','',''
+
+#### train the NCF model
+def etl():
+    pass
+    ## step 1: load the data
+    n_users = 10000
+    n_items = 50000
+    n_factors = 30
+    layers = [64,32,16,8]
+    reg_layers = [0,0,0,0]
+    learning_rate = 0.001
+    flg_pretrain = ''
+    filepath = ''
+    num_epochs = 5
+    batch_size = 5
+
+    ## step 2: build the model
+    ncf = NCF(
+        n_users=n_users,
+        n_items=n_items,
+        n_factors=n_factors,
+        layers=layers,
+        reg_layers=reg_layers
+    )
+    model = ncf.create_model()
+    #### compile the model
+    model.compile(
+        optimizer=Adam(lr=learning_rate),
+        loss='binary_crossentropy'
+    )
+
+    ## step 3: load pretrained model
+    if flg_pretrain != '':
+        pass
+        # model = load_pretrained_model()
+
+    ## step 4: train the model
+    users_input, items_input, labels_input = get_train()
+    #### train
+    model.fit(
+        x = [np.array(users_input),np.array(items_input)],
+        y = np.array(labels_input),
+        batch_size=batch_size,
+        epochs=1,
+        verbose=2,
+        shuffle=True
+    )
 
 
+    ## step 5: save the model weights
+    model.save_weights(filepath=filepath) # saves weights of the model as HDF5 file
+    # model.load_weights(filepath=filepath, by_name=False) # load the pretrained weights
+
+
+
+
+if __name__ == "__main__":
+    etl()
 
 
 
