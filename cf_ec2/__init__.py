@@ -1,5 +1,5 @@
 
 from .dataPrep import Data
 from .ncf import NCF
-from .gfm import GFM
+from .gmf import GMF
 from .mlp import MLP

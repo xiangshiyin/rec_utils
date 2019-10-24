@@ -18,6 +18,7 @@ from keras.layers import (
     Concatenate,
     Dense
 )
+from . import gmf, mlp
 
 
 class NCF:
@@ -46,14 +47,16 @@ class NCF:
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_gmf_User'
         )
         embedding_gmf_Item = Embedding(
             input_dim = self.n_items,
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_gmf_Item'
         )
         ## create the MLP embedding layer
         embedding_mlp_User = Embedding(
@@ -61,41 +64,45 @@ class NCF:
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_mlp_User'
         )
         embedding_mlp_Item = Embedding(
             input_dim = self.n_items,
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_mlp_Item'
         )
 
         ## the GMF branch
-        latent_gmf_User = Flatten()(embedding_gmf_User(self.users_input))
-        latent_gmf_Item = Flatten()(embedding_gmf_Item(self.items_input))
-        vec_gmf = Multiply()([latent_gmf_User,latent_gmf_Item]) # element-wise multiply
+        latent_gmf_User = Flatten(name='flatten_gmf_User')(embedding_gmf_User(self.users_input))
+        latent_gmf_Item = Flatten(name='flatten_gmf_Item')(embedding_gmf_Item(self.items_input))
+        vec_gmf = Multiply(name='multiply_gmf_UserItem')([latent_gmf_User,latent_gmf_Item]) # element-wise multiply
         
         ## the MLP branch
-        latent_mlp_User = Flatten()(embedding_mlp_User(self.users_input))
-        latent_mlp_Item = Flatten()(embedding_mlp_Item(self.items_input))
-        vec_mlp = Concatenate()([latent_mlp_User,latent_mlp_Item])
+        latent_mlp_User = Flatten(name='flatten_mlp_User')(embedding_mlp_User(self.users_input))
+        latent_mlp_Item = Flatten(name='flatten_mlp_Item')(embedding_mlp_Item(self.items_input))
+        vec_mlp = Concatenate(name='concat_mlp_UserItem')([latent_mlp_User,latent_mlp_Item])
         for idx in range(1,num_layers):
             layer = Dense(
                 units=self.layers[idx],
                 activation='relu',
-                kernel_regularizer=l2(self.reg_layers[idx])
+                kernel_regularizer=l2(self.reg_layers[idx]),
+                name='mlp_layer_{}'.format(idx)
             )
             vec_mlp = layer(vec_mlp)
 
         ## concatenate the output vectors from GMF and MLP branches
-        vec_pred = Concatenate()([vec_gmf,vec_mlp])
+        vec_pred = Concatenate(name='concat_gmf_mlp')([vec_gmf,vec_mlp])
 
         ## final prediction layer
         prediction = Dense(
             units=1,
             activation='sigmoid',
-            kernel_initializer='lecun_uniform'
+            kernel_initializer='lecun_uniform',
+            name='output'
         )(vec_pred)
 
         ## finalize the model architecture
@@ -104,6 +111,44 @@ class NCF:
             outputs=prediction
         )
         return model
+    
+    def load_pretrain_model(self, model, model_gmf, model_mlp, num_layers):
+        ## get the embedding weights
+        #### GMF embedding branch
+        w_embedding_gmf_User = model_gmf.get_layer('embedding_gmf_User').get_weights()
+        W_embedding_gmf_Item = model_gmf.get_layer('embedding_gmf_Item').get_weights()
+        model.get_layer('embedding_gmf_User').set_weights(w_embedding_gmf_User)
+        model.get_layer('embedding_mlp_Item').set_weights(W_embedding_gmf_Item)
+        #### MLP embedding branch
+        w_embedding_mlp_User = model_mlp.get_layer('embedding_mlp_User').get_weights()
+        W_embedding_mlp_Item = model_mlp.get_layer('embedding_mlp_Item').get_weights()
+        model.get_layer('embedding_mlp_User').set_weights(w_embedding_mlp_User)
+        model.get_layer('embedding_mlp_Item').set_weights(W_embedding_mlp_Item)
+
+        #### the MLP layers
+        for idx in range(1,num_layers):
+            name_mlp_layer = 'mlp_layer_{}'.format(idx)
+            w_mlp_layer = model_mlp.get_layer(name_mlp_layer).get_weights()
+            model.get_layer(name_mlp_layer).set_weights(w_mlp_layer)
+        
+        #### the output layer
+        w_gmf_output = model_gmf.get_layer('output').get_weights()
+        w_mlp_output = model_mlp.get_layer('output').get_weights()
+        w_ncf_output = 0.5*np.concatenate(
+            (w_gmf_output[0],w_mlp_output[0]),
+            axis=0
+        )
+        b_ncf_output = 0.5*(w_gmf_output[1]+w_mlp_output[1])
+        model.get_layer('output').set_weights([
+            w_ncf_output,
+            b_ncf_output
+        ])
+        return model
+
+
+
+
+
 
 def get_train():
     return '','',''
@@ -120,6 +165,8 @@ def etl():
     learning_rate = 0.001
     flg_pretrain = ''
     filepath = ''
+    filepath_gmf_pretrain = ''
+    filepath_mlp_pretrain = ''
     num_epochs = 5
     batch_size = 5
 
@@ -139,9 +186,17 @@ def etl():
     )
 
     ## step 3: load pretrained model
-    if flg_pretrain != '':
-        pass
-        # model = load_pretrained_model()
+    if filepath_gmf_pretrain!='' and filepath_mlp_pretrain!='':
+        #### initialize the models
+        model_gmf = gmf.GMF(n_users,n_items,n_factors).create_model()
+        model_mlp = mlp.MLP(n_users,n_items,n_factors,layers,reg_layers).create_model()
+        #### load the pretrained weights
+        model_gmf.load_weights(filepath_gmf_pretrain)
+        model_mlp.load_weights(filepath_mlp_pretrain)
+        #### combine and generate the full ncf model
+        model = load_pretrain_model(model,model_gmf,model_mlp,len(layers))
+
+
 
     ## step 4: train the model
     users_input, items_input, labels_input = get_train()

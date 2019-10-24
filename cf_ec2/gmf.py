@@ -20,13 +20,12 @@ from keras.layers import (
 )
 
 
-class GFM:
+class GMF:
     def __init__(
         self,
         n_users,
         n_items,
-        n_factors,
-        seed=123
+        n_factors
     ):
         self.n_users = n_users
         self.n_items = n_items
@@ -42,26 +41,30 @@ class GFM:
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_gmf_User'
         )
         embedding_gmf_Item = Embedding(
             input_dim = self.n_items,
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_gmf_Item'
         )
 
         ## the GMF branch
-        latent_gmf_User = Flatten()(embedding_gmf_User(self.users_input))
-        latent_gmf_Item = Flatten()(embedding_gmf_Item(self.items_input))
-        vec_pred = Multiply()([latent_gmf_User,latent_gmf_Item]) # element-wise multiply
+        latent_gmf_User = Flatten(name='flatten_gmf_User')(embedding_gmf_User(self.users_input))
+        latent_gmf_Item = Flatten(name='flatten_gmf_Item')(embedding_gmf_Item(self.items_input))
+        vec_gmf = Multiply(name='multiply_gmf_UserItem')([latent_gmf_User,latent_gmf_Item]) # element-wise multiply
+        vec_pred = vec_gmf
 
         ## final prediction layer
         prediction = Dense(
             units=1,
             activation='sigmoid',
-            kernel_initializer='lecun_uniform'
+            kernel_initializer='lecun_uniform',
+            name='output'
         )(vec_pred)
 
         ## finalize the model architecture

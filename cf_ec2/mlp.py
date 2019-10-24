@@ -46,36 +46,39 @@ class MLP:
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_mlp_User'
         )
         embedding_mlp_Item = Embedding(
             input_dim = self.n_items,
             output_dim = self.n_factors,
             embeddings_initializer = 'truncated_normal',
             embeddings_regularizer = keras.regularizers.l2(0.),
-            input_length = 1
+            input_length = 1,
+            name = 'embedding_mlp_Item'
         )
         
         ## the MLP branch
-        latent_mlp_User = Flatten()(embedding_mlp_User(self.users_input))
-        latent_mlp_Item = Flatten()(embedding_mlp_Item(self.items_input))
-        vec_mlp = Concatenate()([latent_mlp_User,latent_mlp_Item])
+        latent_mlp_User = Flatten(name='flatten_mlp_User')(embedding_mlp_User(self.users_input))
+        latent_mlp_Item = Flatten(name='flatten_mlp_Item')(embedding_mlp_Item(self.items_input))
+        vec_mlp = Concatenate(name='concat_mlp_UserItem')([latent_mlp_User,latent_mlp_Item])
         for idx in range(1,num_layers):
             layer = Dense(
                 units=self.layers[idx],
                 activation='relu',
-                kernel_regularizer=l2(self.reg_layers[idx])
+                kernel_regularizer=l2(self.reg_layers[idx]),
+                name='mlp_layer_{}'.format(idx)
             )
             vec_mlp = layer(vec_mlp)
 
-        ## concatenate the output vectors from GMF and MLP branches
         vec_pred = vec_mlp
 
         ## final prediction layer
         prediction = Dense(
             units=1,
             activation='sigmoid',
-            kernel_initializer='lecun_uniform'
+            kernel_initializer='lecun_uniform',
+            name='output'
         )(vec_pred)
 
         ## finalize the model architecture
