@@ -1,5 +1,6 @@
 
 import numpy as np 
+import pandas as pd
 import keras
 from keras import Model
 from keras.regularizers import l2
@@ -18,7 +19,7 @@ from keras.layers import (
     Concatenate,
     Dense
 )
-from . import gmf, mlp
+from . import gmf, mlp, dataPrep
 
 
 class NCF:
@@ -26,52 +27,55 @@ class NCF:
         self,
         n_users,
         n_items,
-        n_factors,
-        layers,
-        reg_layers
+        n_factors_gmf,
+        layers_mlp,
+        reg_gmf=0.,
+        reg_layers_mlp=[0.,0.,0.,0.]
     ):
         self.n_users = n_users
         self.n_items = n_items
-        self.n_factors = n_factors
-        self.layers = layers # [64,32,16,8]
-        self.reg_layers = reg_layers # [0,0,0,0]
+        self.n_factors_gmf = n_factors_gmf
+        self.layers_mlp = layers_mlp # [64,32,16,8]
+        self.n_factors_mlp = self.layers_mlp[0]//2
+        self.reg_gmf = reg_gmf
+        self.reg_layers_mlp = reg_layers_mlp # [0,0,0,0]
 
     def create_model(self):
-        num_layers = len(self.layers)
+        num_layers_mlp = len(self.layers_mlp)
         ## create the input layer
         self.users_input = Input(shape=(1,), dtype='int32', name='user_input')
         self.items_input = Input(shape=(1,), dtype='int32', name='item_input')
         ## create the GMF embedding layer
         embedding_gmf_User = Embedding(
             input_dim = self.n_users,
-            output_dim = self.n_factors,
+            output_dim = self.n_factors_gmf,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = keras.regularizers.l2(0.),
+            embeddings_regularizer = l2(self.reg_gmf),
             input_length = 1,
             name = 'embedding_gmf_User'
         )
         embedding_gmf_Item = Embedding(
             input_dim = self.n_items,
-            output_dim = self.n_factors,
+            output_dim = self.n_factors_gmf,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = keras.regularizers.l2(0.),
+            embeddings_regularizer = l2(self.reg_gmf),
             input_length = 1,
             name = 'embedding_gmf_Item'
         )
         ## create the MLP embedding layer
         embedding_mlp_User = Embedding(
             input_dim = self.n_users,
-            output_dim = self.n_factors,
+            output_dim = self.n_factors_mlp,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = keras.regularizers.l2(0.),
+            embeddings_regularizer = l2(self.reg_layers_mlp[0]),
             input_length = 1,
             name = 'embedding_mlp_User'
         )
         embedding_mlp_Item = Embedding(
             input_dim = self.n_items,
-            output_dim = self.n_factors,
+            output_dim = self.n_factors_mlp,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = keras.regularizers.l2(0.),
+            embeddings_regularizer = l2(self.reg_layers_mlp[0]),
             input_length = 1,
             name = 'embedding_mlp_Item'
         )
@@ -85,11 +89,11 @@ class NCF:
         latent_mlp_User = Flatten(name='flatten_mlp_User')(embedding_mlp_User(self.users_input))
         latent_mlp_Item = Flatten(name='flatten_mlp_Item')(embedding_mlp_Item(self.items_input))
         vec_mlp = Concatenate(name='concat_mlp_UserItem')([latent_mlp_User,latent_mlp_Item])
-        for idx in range(1,num_layers):
+        for idx in range(1,num_layers_mlp):
             layer = Dense(
-                units=self.layers[idx],
+                units=self.layers_mlp[idx],
                 activation='relu',
-                kernel_regularizer=l2(self.reg_layers[idx]),
+                kernel_regularizer=l2(self.reg_layers_mlp[idx]),
                 name='mlp_layer_{}'.format(idx)
             )
             vec_mlp = layer(vec_mlp)
@@ -112,21 +116,21 @@ class NCF:
         )
         return model
     
-    def load_pretrain_model(self, model, model_gmf, model_mlp, num_layers):
+    def load_pretrain_model(self, model, model_gmf, model_mlp, num_layers_mlp):
         ## get the embedding weights
         #### GMF embedding branch
         w_embedding_gmf_User = model_gmf.get_layer('embedding_gmf_User').get_weights()
-        W_embedding_gmf_Item = model_gmf.get_layer('embedding_gmf_Item').get_weights()
+        w_embedding_gmf_Item = model_gmf.get_layer('embedding_gmf_Item').get_weights()
         model.get_layer('embedding_gmf_User').set_weights(w_embedding_gmf_User)
-        model.get_layer('embedding_mlp_Item').set_weights(W_embedding_gmf_Item)
+        model.get_layer('embedding_mlp_Item').set_weights(w_embedding_gmf_Item)
         #### MLP embedding branch
         w_embedding_mlp_User = model_mlp.get_layer('embedding_mlp_User').get_weights()
-        W_embedding_mlp_Item = model_mlp.get_layer('embedding_mlp_Item').get_weights()
+        w_embedding_mlp_Item = model_mlp.get_layer('embedding_mlp_Item').get_weights()
         model.get_layer('embedding_mlp_User').set_weights(w_embedding_mlp_User)
-        model.get_layer('embedding_mlp_Item').set_weights(W_embedding_mlp_Item)
+        model.get_layer('embedding_mlp_Item').set_weights(w_embedding_mlp_Item)
 
         #### the MLP layers
-        for idx in range(1,num_layers):
+        for idx in range(1,num_layers_mlp):
             name_mlp_layer = 'mlp_layer_{}'.format(idx)
             w_mlp_layer = model_mlp.get_layer(name_mlp_layer).get_weights()
             model.get_layer(name_mlp_layer).set_weights(w_mlp_layer)
@@ -159,9 +163,10 @@ def etl():
     ## step 1: load the data
     n_users = 10000
     n_items = 50000
-    n_factors = 30
-    layers = [64,32,16,8]
-    reg_layers = [0,0,0,0]
+    n_factors_gmf = 30
+    layers_mlp = [64,32,16,8]
+    reg_gmf = 0.
+    reg_layers_mlp = [0.,0.,0.,0.]
     learning_rate = 0.001
     flg_pretrain = ''
     filepath = ''
@@ -174,9 +179,10 @@ def etl():
     ncf = NCF(
         n_users=n_users,
         n_items=n_items,
-        n_factors=n_factors,
-        layers=layers,
-        reg_layers=reg_layers
+        n_factors_gmf=n_factors_gmf,
+        layers_mlp=layers_mlp,
+        reg_gmf=reg_gmf,
+        reg_layers_mlp=reg_layers_mlp
     )
     model = ncf.create_model()
     #### compile the model
@@ -188,27 +194,65 @@ def etl():
     ## step 3: load pretrained model
     if filepath_gmf_pretrain!='' and filepath_mlp_pretrain!='':
         #### initialize the models
-        model_gmf = gmf.GMF(n_users,n_items,n_factors).create_model()
-        model_mlp = mlp.MLP(n_users,n_items,n_factors,layers,reg_layers).create_model()
+        model_gmf = gmf.GMF(
+            n_users=n_users,
+            n_items=n_items,
+            n_factors_gmf=n_factors_gmf,
+            reg_gmf=reg_gmf
+        ).create_model()
+        model_mlp = mlp.MLP(
+            n_users=n_users,
+            n_items=n_items,
+            layers_mlp=layers_mlp,
+            reg_layers_mlp=reg_layers_mlp
+        ).create_model()
         #### load the pretrained weights
         model_gmf.load_weights(filepath_gmf_pretrain)
         model_mlp.load_weights(filepath_mlp_pretrain)
         #### combine and generate the full ncf model
-        model = load_pretrain_model(model,model_gmf,model_mlp,len(layers))
+        model = ncf.load_pretrain_model(
+            model=model,
+            model_gmf=model_gmf,
+            model_mlp=model_mlp,
+            num_layers_mlp=len(layers_mlp)
+        )
 
 
 
     ## step 4: train the model
-    users_input, items_input, labels_input = get_train()
+    #### load the raw training data
+    train = pd.read_csv(
+        '',
+        sep=',',
+        header=0
+    )
+    #### generate the set of user/item/label lists
+    dataset = dataPrep.Data(
+        train=train,
+        col_user='contact_uid',
+        col_item='item',
+        col_rating='freq',
+        binary=True
+    )
+    dataset.prepTrainDNN()
+    users_input = dataset.users
+    items_input = dataset.items
+    labels = dataset.ratings
+
+
     #### train
-    model.fit(
-        x = [np.array(users_input),np.array(items_input)],
-        y = np.array(labels_input),
+    hist = model.fit(
+        x = [
+            np.array(users_input),
+            np.array(items_input)
+        ],
+        y = np.array(labels),
         batch_size=batch_size,
         epochs=1,
         verbose=2,
         shuffle=True
     )
+    # verbose: Integer. 0, 1, or 2. Verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
 
 
     ## step 5: save the model weights

@@ -24,11 +24,14 @@ class Data:
         n_neg=4,
         n_neg_test=100
     ):
+        '''
+        By default, the input training data is assumed to be pandas dataframe.
+        '''
         self.col_user = col_user
         self.col_item = col_item
         self.col_rating = col_rating
         self.col_time = col_time
-        self.train,self.test = self.process(train,test,binary) # index train and test sets
+        self.train,self.test = self.process(train,test,binary) # indexed train and test sets
         self.n_neg = n_neg
         self.n_neg_test = n_neg_test
     

@@ -25,11 +25,13 @@ class GMF:
         self,
         n_users,
         n_items,
-        n_factors
+        n_factors_gmf,
+        reg_gmf=0.
     ):
         self.n_users = n_users
         self.n_items = n_items
-        self.n_factors = n_factors
+        self.n_factors_gmf = n_factors_gmf
+        self.reg_gmf = reg_gmf
 
     def create_model(self):
         ## create the input layer
@@ -38,17 +40,17 @@ class GMF:
         ## create the GMF embedding layer
         embedding_gmf_User = Embedding(
             input_dim = self.n_users,
-            output_dim = self.n_factors,
+            output_dim = self.n_factors_gmf,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = keras.regularizers.l2(0.),
+            embeddings_regularizer = keras.regularizers.l2(self.reg_gmf),
             input_length = 1,
             name = 'embedding_gmf_User'
         )
         embedding_gmf_Item = Embedding(
             input_dim = self.n_items,
-            output_dim = self.n_factors,
+            output_dim = self.n_factors_gmf,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = keras.regularizers.l2(0.),
+            embeddings_regularizer = keras.regularizers.l2(self.reg_gmf),
             input_length = 1,
             name = 'embedding_gmf_Item'
         )
