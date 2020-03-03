@@ -36,6 +36,10 @@ class Data:
         self.n_neg_test = n_neg_test
     
     def process(self, train, test, binary):
+        '''
+        1. Index users and items
+        2. Create train and test dataset with only indexed users and items
+        '''
         df = train if test is None else train.append(test)
         users = df[self.col_user].unique()
         items = df[self.col_item].unique()
@@ -48,6 +52,9 @@ class Data:
         return self.indexUserItem(train, binary), self.indexUserItem(test, binary)
     
     def indexUserItem(self, df, binary):
+        '''
+        Index users and items based on the known universe (train+test)
+        '''
         if df is None:
             return None
         ## add columns for user and item indicies
@@ -70,7 +77,11 @@ class Data:
     def splitTrainTest(self):
         pass
 
-    def prepTrainDNN(self):
+    def prepTrainDNN(self, negSample=True):
+        '''
+        1. Create positive and negative samples for each users in train
+        2. Get lists of users, items, and ratings from train
+        '''
         self.itemSet_train = set(self.train[self.col_item].unique()) ## all items in train
         self.interaction_train = self.train.groupby(self.col_user)[self.col_item]\
             .apply(set)\
@@ -82,15 +93,21 @@ class Data:
             self.col_item+'_interacted'
         ].map(lambda items: self.itemSet_train-items) ## the actual negative set for each user
 
-        ## users, items, ratings all have the same size
-        self.users = np.array(self.train[self.col_user])
-        self.items = np.array(self.train[self.col_item])
-        self.ratings = np.array([
-            float(rating)
-            for rating in self.train[self.col_rating]
-        ])
+        if negSample:
+            self.negativeSampling()
+        else:
+            ## users, items, ratings all have the same size
+            self.users = np.array(self.train[self.col_user])
+            self.items = np.array(self.train[self.col_item])
+            self.ratings = np.array([
+                float(rating)
+                for rating in self.train[self.col_rating]
+            ])
     
-    def prepTestDNN(self):
+    def prepTestDNN(self, group=False):
+        '''
+        Create the test dataset with negative sampling
+        '''
         # t1 = time.time()
         assert self.test is not None, 'No test dataset is assigned!!'
         interaction_test = self.test.groupby(self.col_user)[self.col_item]\
@@ -145,19 +162,43 @@ class Data:
                 testPlusNegSample.at[row.Index, self.col_item+'_negative'] \
                     = random.sample(getattr(row,self.col_item+'_negative'), minNegNum)
         # print('Finished negative sampling in test data in {} seconds'.format(time.time()-t1))
+
+        ## flatten the test dataset
         #### generate the test data set (include both positive and negative samples)
+        if group == True:
+            self.testGrouped = {}
+
         self.users_test,self.items_test,self.ratings_test = [],[],[]
         for row in testPlusNegSample.itertuples():
-            self.users_test.append(getattr(row,self.col_user))
-            self.items_test.append(getattr(row,self.col_item))
-            self.ratings_test.append(float(getattr(row,self.col_rating)))
+            user_tmp = getattr(row,self.col_user)
+            item_tmp = getattr(row,self.col_item)
+            rating_tmp = getattr(row,self.col_rating)
+
+            self.users_test.append(user_tmp)
+            self.items_test.append(item_tmp)
+            self.ratings_test.append(float(rating_tmp))
+            if group == True:
+                if self.testGrouped.get(user_tmp,None)==None:
+                    self.testGrouped[user_tmp]={}
+                    self.testGrouped[user_tmp]['items'] = [item_tmp]
+                    self.testGrouped[user_tmp]['ratings'] = [rating_tmp]
+                else:
+                    self.testGrouped[user_tmp]['items'].append(item_tmp)
+                    self.testGrouped[user_tmp]['ratings'].append(float(rating_tmp))
+
 
             for negSample in getattr(row, self.col_item+'_negative'):
-                self.users_test.append(getattr(row,self.col_user))
+                self.users_test.append(user_tmp)
                 self.items_test.append(negSample)
                 self.ratings_test.append(float(0))
+                if group == True:
+                    self.testGrouped[user_tmp]['items'].append(negSample)
+                    self.testGrouped[user_tmp]['ratings'].append(float(0))             
        
     def negativeSampling(self): ## negative sample the train data set
+        '''
+        Create the train dataset with negative sampling
+        '''
         trainPlusNegSample = pd.merge(
             self.train,
             self.interaction_train[[self.col_user, self.col_item+'_negative']],
@@ -191,6 +232,9 @@ class Data:
         self.ratings = np.array(self.ratings)
     
     def getBatch_train(self, batchSize, shuffle=True):
+        '''
+        Create batches of training dataset
+        '''
         indices = np.arange(len(self.users))
         if shuffle:
             random.shuffle(indices)

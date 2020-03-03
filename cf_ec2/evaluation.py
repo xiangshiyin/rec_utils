@@ -55,7 +55,7 @@ def mergeTrueAndPredWithRank(
     topK = k
     ## find shared users between pred and actual
     common_users = set(rating_true[col_user].unique()).intersection(
-        set(rating_true[col_user].unique())
+        set(rating_pred[col_user].unique())
     )
     ## clean the pred and actual based on the shared users
     n_users = len(common_users)
@@ -156,7 +156,7 @@ def ndcg_at_k(
     # calculate discounted gain for hit items
     df_dcg = df_hit.copy()
     # relevance in this case is always 1
-    df_dcg["dcg"] = 1 / np.log1p(df_dcg["rank"])
+    df_dcg["dcg"] = 1 / np.log1p(df_dcg["rnk"])
     # sum up discount gained to get discount cumulative gain
     df_dcg = df_dcg.groupby(col_user, as_index=False, sort=False).agg({"dcg": "sum"})
     # calculate ideal discounted cumulative gain
