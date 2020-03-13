@@ -31,7 +31,7 @@ class MLP:
         self.n_users = n_users
         self.n_items = n_items
         self.layers_mlp = layers_mlp # [64,32,16,8]
-        self.n_factors_mlp = self.layers_mlp[0]/2
+        self.n_factors_mlp = self.layers_mlp[0]//2
         self.reg_layers_mlp = reg_layers_mlp # [0,0,0,0]
 
     def create_model(self):
@@ -44,7 +44,7 @@ class MLP:
             input_dim = self.n_users,
             output_dim = self.n_factors_mlp,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = l2(self.reg_layers_mlp),
+            embeddings_regularizer = l2(self.reg_layers_mlp[0]),
             input_length = 1,
             name = 'embedding_mlp_User'
         )
@@ -52,7 +52,7 @@ class MLP:
             input_dim = self.n_items,
             output_dim = self.n_factors_mlp,
             embeddings_initializer = 'truncated_normal',
-            embeddings_regularizer = l2(self.reg_layers_mlp),
+            embeddings_regularizer = l2(self.reg_layers_mlp[0]),
             input_length = 1,
             name = 'embedding_mlp_Item'
         )
