@@ -18,7 +18,7 @@ from keras.layers import (
     Concatenate,
     Dense
 )
-
+from . import evaluation_grouped
 
 class MLP:
     def __init__(
@@ -87,7 +87,7 @@ class MLP:
         )
         
         ## load pretrain model
-        if not path_pretrain:
+        if path_pretrain:
             model.load_weights(path_pretrain)
         self.model = model
     
@@ -99,7 +99,7 @@ class MLP:
             metrics=['accuracy']
         )
 
-    def fit(self, dataset, path_model_weights, path_csvlog):
+    def fit(self, dataset, batch_size, num_epochs, path_model_weights, path_csvlog):
         ## create the callback metrics
         checkpoint = keras.callbacks.ModelCheckpoint(
             filepath= path_model_weights, 
