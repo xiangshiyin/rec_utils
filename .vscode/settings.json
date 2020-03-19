@@ -5,5 +5,5 @@
         "PATH":"/Users/xyin/anaconda3/bin:/Users/xyin/anaconda3/condabin:/Users/xyin/.nvm/versions/node/v9.10.1/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/mysql/bin:/Applications/terraform:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
     },
     "licenser.author": "Yin, Xiangshi",
-    "python.linting.enabled": true
+    "python.linting.enabled": false
 }

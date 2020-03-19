@@ -34,7 +34,7 @@ class MLP:
         self.n_factors_mlp = self.layers_mlp[0]//2
         self.reg_layers_mlp = reg_layers_mlp # [0,0,0,0]
 
-    def create_model(self):
+    def create_model(self, path_pretrain=None):
         num_layers_mlp = len(self.layers_mlp)
         ## create the input layer
         self.users_input = Input(shape=(1,), dtype='int32', name='user_input')
@@ -85,4 +85,60 @@ class MLP:
             inputs=[self.users_input,self.items_input], 
             outputs=prediction
         )
-        return model
+        
+        ## load pretrain model
+        if not path_pretrain:
+            model.load_weights(path_pretrain)
+        self.model = model
+    
+    def compile(self,learning_rate):
+        ## compile the model
+        self.model.compile(
+            optimizer=Adam(learning_rate=learning_rate),
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
+
+    def fit(self, dataset, path_model_weights, path_csvlog):
+        ## create the callback metrics
+        checkpoint = keras.callbacks.ModelCheckpoint(
+            filepath= path_model_weights, 
+            verbose=1, 
+            save_best_only=True
+        )
+        csvlog = keras.callbacks.CSVLogger(
+            filename=path_csvlog, 
+            separator=',', 
+            append=False
+        )
+        earlystop = keras.callbacks.EarlyStopping(patience=12)
+        lrreduce = keras.callbacks.ReduceLROnPlateau(
+            monitor="val_loss", 
+            factor=0.3, 
+            patience=4, 
+            verbose=1
+        )  
+        metrics2 = evaluation_grouped.metricsCallback()      
+        ## fit the model
+        hist = self.model.fit(
+            x = [
+                np.array(dataset.users),
+                np.array(dataset.items)
+            ],
+            y = np.array(dataset.ratings),
+            batch_size=batch_size,
+            epochs=num_epochs,
+            verbose=2,
+            shuffle=True,
+            callbacks=[metrics2,checkpoint,csvlog,earlystop,lrreduce],
+            validation_data=(
+                [
+                    np.array(dataset.users_test),
+                    np.array(dataset.items_test)
+                ],
+                np.array(dataset.ratings_test)
+            )
+        )  
+        return hist      
+
+    
