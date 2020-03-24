@@ -39,11 +39,11 @@ def mergeTrueAndPred(
 ):
     rating_combined = pd.merge(
         rating_true,
-        rating_pred,
+        rating_pred.rename(columns={col_pred:col_rating}),
         on=[col_user, col_item],
         suffixes=['_true','_pred']
     )
-    return rating_combined[col_rating+'_true'], rating_combined[col_pred+'_pred']
+    return rating_combined[col_rating+'_true'], rating_combined[col_rating+'_pred']
 
 def mergeTrueAndPredWithRank(
     rating_true,
@@ -64,7 +64,7 @@ def mergeTrueAndPredWithRank(
     rating_true_common = rating_true[rating_true[col_user].isin(common_users)]
     rating_pred_common = rating_pred[rating_pred[col_user].isin(common_users)]
     ## get ranked pred output
-    topKItems = getTopK(rating_pred_common,col_user,col_rating,topK)
+    topKItems = getTopK(rating_pred_common,col_user,col_pred,topK)
     ## match ranked pred with actual
     df_hit = pd.merge(
         topKItems,

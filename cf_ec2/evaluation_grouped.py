@@ -47,7 +47,7 @@ class metricsEval():
     def getRankBasedMetrics(self,users_test,items_test,ratings_test,K=10):
         assert K>0, 'Invalid K value for evaluation!!'
         ## format the true test set
-        all_test = self.__formatTestDF(users_test,items_test,ratings_test)
+        all_test = self._formatTestDF(users_test,items_test,ratings_test)
         ## calculate the metrics
         recall = evaluation.recall_at_k(
             rating_true=all_test,
@@ -101,7 +101,7 @@ class metricsEval():
         logloss = evaluation.logloss(y_true,y_pred)
         return rmse,auc,logloss
 
-    def __formatTestDF(self,users_test,items_test,ratings_test):
+    def _formatTestDF(self,users_test,items_test,ratings_test):
         all_test = pd.DataFrame(data={
             'userID':users_test,
             'itemID':items_test,
