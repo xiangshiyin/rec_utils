@@ -4,12 +4,12 @@ import time
 import random
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 DIR_CURRENT = os.path.dirname(os.path.abspath(__file__))
 DIR_PARENT = os.path.dirname(DIR_CURRENT)
 ## customized modules
 sys.path.append(DIR_PARENT)
-from common import constants
 
 class Data:
     def __init__(
@@ -22,6 +22,7 @@ class Data:
         test=None,
         binary=False,
         n_neg=4,
+        n_neg_limit=3000,
         n_neg_test=100
     ):
         '''
@@ -33,6 +34,7 @@ class Data:
         self.col_time = col_time
         self.train,self.test = self.process(train,test,binary) # indexed train and test sets
         self.n_neg = n_neg
+        self.n_neg_limit = n_neg_limit
         self.n_neg_test = n_neg_test
     
     def process(self, train, test, binary):
@@ -72,6 +74,12 @@ class Data:
             self.col_user+'_idx':self.col_user,
             self.col_item+'_idx':self.col_item
         })
+        ## remove duplicates
+        df_indexed = df_indexed.groupby([
+            self.col_user,
+            self.col_item,
+            self.col_rating
+        ]).size().reset_index().drop(columns=0)
         return df_indexed
 
     def splitTrainTest(self):
@@ -89,9 +97,18 @@ class Data:
                     .rename(columns={
                         self.col_item:self.col_item+'_interacted'
                     })
-        self.interaction_train[self.col_item+'_negative'] = self.interaction_train[
-            self.col_item+'_interacted'
-        ].map(lambda items: self.itemSet_train-items) ## the actual negative set for each user
+        if not self.n_neg_limit:
+            self.interaction_train[self.col_item+'_negative'] = self.interaction_train[
+                self.col_item+'_interacted'
+            ].map(lambda items: self.itemSet_train-items) ## the actual negative set for each user
+        else: # if n_neg_limit is set due to computation resource limit
+            self.interaction_train[self.col_item+'_negative'] = [
+                random.sample(
+                    self.itemSet_train - self.interaction_train.loc[self.interaction_train.user==user, self.col_item+'_interacted'].values[0],
+                    self.n_neg_limit
+                )
+                for user in tqdm(self.interaction_train.user)
+            ]
 
         if negSample:
             self.negativeSampling()
@@ -104,12 +121,18 @@ class Data:
                 for rating in self.train[self.col_rating]
             ])
     
-    def prepTestDNN(self, group=False):
+    def prepTestDNN(self, group=False, cleanItem=True):
         '''
         Create the test dataset with negative sampling
         '''
         # t1 = time.time()
         assert self.test is not None, 'No test dataset is assigned!!'
+        if cleanItem: ## remove items that are not in train dataset
+            self.test = pd.merge(
+                self.test,
+                self.train.groupby('item').size().reset_index().drop(columns=0),
+                on='item'
+            )
         interaction_test = self.test.groupby(self.col_user)[self.col_item]\
             .apply(set)\
                 .reset_index()\
@@ -129,10 +152,15 @@ class Data:
         #     lambda row: row[self.col_item+'_negative']-row[self.col_item+'_interacted_test'],
         #     axis=1
         # )
-        #### the efficient solution
-        for row in interaction_test.itertuples():
-            interaction_test.at[row.Index,self.col_item+'_negative'] \
-                = getattr(row,self.col_item+'_negative') - getattr(row,self.col_item+'_interacted_test')
+        if not self.n_neg_limit: ## without negative sample pool limit
+            #### the efficient solution
+            for row in interaction_test.itertuples():
+                interaction_test.at[row.Index,self.col_item+'_negative'] \
+                    = getattr(row,self.col_item+'_negative') - getattr(row,self.col_item+'_interacted_test')
+        else: ## with negative sample pool limit
+            for row in interaction_test.itertuples():
+                interaction_test.at[row.Index,self.col_item+'_negative'] \
+                    = set(getattr(row,self.col_item+'_negative')) - getattr(row,self.col_item+'_interacted_test')
         # print('Finished negative sample clean in {} seconds'.format(time.time()-t1))
         ## assign full negative sample set to each record in test dataset
         testPlusNegSample = pd.merge(
