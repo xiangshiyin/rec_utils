@@ -1,16 +1,17 @@
 
 import numpy as np 
-import keras
-from keras import Model
-from keras.regularizers import l2
-from keras.optimizers import (
+import tensorflow as tf
+# import keras
+from tensorflow.keras import Model
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.optimizers import (
     Adam,
     Adamax,
     Adagrad,
     SGD,
     RMSprop
 )
-from keras.layers import (
+from tensorflow.keras.layers import (
     Embedding, 
     Input,
     Flatten, 
@@ -101,24 +102,25 @@ class MLP:
 
     def fit(self, dataset, batch_size, num_epochs, path_model_weights, path_csvlog):
         ## create the callback metrics
-        checkpoint = keras.callbacks.ModelCheckpoint(
-            filepath= path_model_weights, 
+        checkpoint = tf.keras.callbacks.ModelCheckpoint(
+            filepath= path_model_weights,  
+            monitor='val_loss',
             verbose=1, 
             save_best_only=True
         )
-        csvlog = keras.callbacks.CSVLogger(
+        csvlog = tf.keras.callbacks.CSVLogger(
             filename=path_csvlog, 
             separator=',', 
             append=False
         )
-        earlystop = keras.callbacks.EarlyStopping(patience=12)
-        lrreduce = keras.callbacks.ReduceLROnPlateau(
+        earlystop = tf.keras.callbacks.EarlyStopping(patience=12)
+        lrreduce = tf.keras.callbacks.ReduceLROnPlateau(
             monitor="val_loss", 
             factor=0.3, 
             patience=4, 
             verbose=1
         )  
-        metrics2 = evaluation_grouped.metricsCallback()      
+        metrics2 = evaluation_grouped.metricsCallback(batch_size=batch_size,log_steps=100)      
         ## fit the model
         hist = self.model.fit(
             x = [

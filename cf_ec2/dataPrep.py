@@ -22,7 +22,7 @@ class Data:
         test=None,
         binary=False,
         n_neg=4,
-        n_neg_limit=3000,
+        n_neg_limit=0,
         n_neg_test=100
     ):
         '''
