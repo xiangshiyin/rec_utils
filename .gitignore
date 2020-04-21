@@ -106,3 +106,4 @@ data/
 *.hdf5
 *.pickle
 *.pkl
+metadata/original_dataset/
