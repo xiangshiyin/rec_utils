@@ -2,10 +2,13 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import time
-from absl import logging
+# from absl import logging
+# import logging
 import tensorflow as tf
 # import keras
 from . import evaluation
+
+# logger = logging.getLogger()
 
 class BatchTimestamp(object):
   """A structure to store batch time stamp."""
@@ -64,16 +67,16 @@ class metricsCallback(tf.keras.callbacks.Callback):
         """The average number of training examples per second across all epochs."""
         return self.average_steps_per_second * self.batch_size
 
-    # def on_train_end(self, logs=None):
-    #     self.train_finish_time = time.time()
+    def on_train_end(self, logs=None):
+        self.train_finish_time = time.time()
 
-    #     if self.summary_writer:
-    #         self.summary_writer.flush()
+        if self.summary_writer:
+            self.summary_writer.flush()
 
     def on_epoch_begin(self, epoch, logs=None):
         self.epoch_start = time.time()
 
-    def on_batch_begin(self, batch, logs=None):
+    def on_train_batch_begin(self, batch, logs=None):
         if not self.start_time:
             self.start_time = time.time()
 
@@ -82,7 +85,7 @@ class metricsCallback(tf.keras.callbacks.Callback):
             self.timestamp_log.append(BatchTimestamp(self.global_steps,
                                                 self.start_time))
 
-    def on_batch_end(self, batch, logs=None):
+    def on_train_batch_end(self, batch, logs=None):
         """Records elapse time of the batch and calculates examples per second."""
         self.steps_in_epoch = batch + 1
         steps_since_last_log = self.global_steps - self.last_log_step
@@ -93,10 +96,17 @@ class metricsCallback(tf.keras.callbacks.Callback):
             examples_per_second = steps_per_second * self.batch_size
 
             self.timestamp_log.append(BatchTimestamp(self.global_steps, now))
-            logging.info(
-                'TimeHistory: %.2f seconds, %.2f examples/second between steps %d '
-                'and %d', elapsed_time, examples_per_second, self.last_log_step,
-                self.global_steps)
+            # logger.info(
+            #     'TimeHistory: %.2f seconds, %.2f examples/second between steps %d '
+            #     'and %d', elapsed_time, examples_per_second, self.last_log_step,
+            #     self.global_steps)
+            print(
+                'TimeHistory: {:.2f} seconds, {:.2f} examples/second between steps {} and {}'.format(
+                    elapsed_time, 
+                    examples_per_second, 
+                    self.last_log_step,
+                    self.global_steps
+                ))            
 
             if self.summary_writer:
                 with self.summary_writer.as_default():
@@ -114,13 +124,23 @@ class metricsCallback(tf.keras.callbacks.Callback):
 
         self.steps_before_epoch += self.steps_in_epoch
         self.steps_in_epoch = 0
-        # ## addtional evaluation metrics
+        print("global_steps: {}, last_log_step: {}".format(self.global_steps, self.last_log_step))
+        # ## addtional evaluation metrics (self.validation_data deprecated in tf2)
         # X_val = [self.validation_data[0],self.validation_data[1]]
         # y_val = self.validation_data[2]
         # y_predict = self.model.predict(x = X_val)
         # logs['val_auc'] = evaluation.auc(y_val, y_predict)
         # logs['val_rmse'] = evaluation.rmse(y_val, y_predict)
         # logs['val_logloss'] = evaluation.logloss(y_val, y_predict)
+
+        ## workaround for tf2
+        # class ValMetrics(Callback):
+
+        #     def __init__(self, validation_data):
+        #         super(Callback, self).__init__()
+        #         self.X_val, self.y_val = validation_data        
+
+
 
 class metricsEval():
     def __init__(self, model, users, items):

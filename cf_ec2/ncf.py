@@ -186,7 +186,7 @@ class NCF:
             patience=4, 
             verbose=1
         )  
-        metrics2 = evaluation_grouped.metricsCallback(batch_size=batch_size,log_steps=100)      
+        metrics2 = evaluation_grouped.metricsCallback(batch_size=batch_size,log_steps=500)      
         ## fit the model
         hist = self.model.fit(
             x = [
